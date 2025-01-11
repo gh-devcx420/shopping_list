@@ -1,5 +1,10 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
+import 'package:shopping_list/data/categories.dart';
 import 'package:shopping_list/data/grocery_list.dart';
+import 'package:shopping_list/models/grocery_item.dart';
 import 'package:shopping_list/screens/add_item_screen.dart';
 
 class ShoppingListHomeScreen extends StatefulWidget {
@@ -10,6 +15,36 @@ class ShoppingListHomeScreen extends StatefulWidget {
 }
 
 class _ShoppingListHomeScreenState extends State<ShoppingListHomeScreen> {
+  bool _isLoading = true;
+
+  void loadItems() async {
+    final url = Uri.https(
+      'shopping-list-d65c7-default-rtdb.firebaseio.com',
+      'shopping-list.json',
+    );
+    final response = await http.get(url);
+    final Map<String, dynamic> listData = json.decode(response.body);
+
+    List<GroceryItem> loadedList = [];
+    for (final item in listData.entries) {
+      final category = shoppingCategories.entries.firstWhere((categoryItem) {
+        return categoryItem.value.title == item.value['category'];
+      }).value;
+      loadedList.add(
+        GroceryItem(
+          id: item.key,
+          itemName: item.value['itemName'],
+          category: category,
+          quantity: item.value['quantity'],
+        ),
+      );
+    }
+    setState(() {
+      groceryItems = loadedList;
+      _isLoading = false;
+    });
+  }
+
   void _addItem(BuildContext context) async {
     final newItem = await Navigator.of(context).push(
       MaterialPageRoute(
@@ -18,20 +53,38 @@ class _ShoppingListHomeScreenState extends State<ShoppingListHomeScreen> {
         },
       ),
     );
-    if (newItem != null) {
-      setState(() {
-        groceryItems.add(newItem);
-      });
-    }
+    setState(() {
+      groceryItems.add(newItem);
+    });
+  }
+
+  void _removeItem(GroceryItem item) {
+    final url = Uri.https(
+      'shopping-list-d65c7-default-rtdb.firebaseio.com',
+      'shopping-list/${item.id}.json',
+    );
+    http.delete(url);
+    groceryItems.remove(item);
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    loadItems();
   }
 
   @override
   Widget build(BuildContext context) {
-    Widget body = const Center(
+    Widget bodyContent = const Center(
       child: Text('No Data'),
     );
+    if (_isLoading) {
+      bodyContent = const Center(
+        child: CircularProgressIndicator(),
+      );
+    }
     if (groceryItems.isNotEmpty) {
-      body = ListView.builder(
+      bodyContent = ListView.builder(
         itemCount: groceryItems.length,
         itemBuilder: (context, index) {
           return Dismissible(
@@ -44,7 +97,8 @@ class _ShoppingListHomeScreenState extends State<ShoppingListHomeScreen> {
                     return AlertDialog(
                       title: const Text('Confirm Deletion'),
                       content: const Text(
-                          'Are you sure you want to delete this item?'),
+                        'Are you sure you want to delete this item?',
+                      ),
                       actions: <Widget>[
                         TextButton(
                           onPressed: () => Navigator.of(context).pop(false),
@@ -59,9 +113,9 @@ class _ShoppingListHomeScreenState extends State<ShoppingListHomeScreen> {
                   });
             },
             onDismissed: (direction) {
-              setState(() {
-                groceryItems.remove(groceryItems[index]);
-              });
+              _removeItem(
+                groceryItems[index],
+              );
             },
             child: ListTile(
               leading: Container(
@@ -85,6 +139,7 @@ class _ShoppingListHomeScreenState extends State<ShoppingListHomeScreen> {
         },
       );
     }
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('Shopping List'),
@@ -100,7 +155,7 @@ class _ShoppingListHomeScreenState extends State<ShoppingListHomeScreen> {
           color: Colors.white,
         ),
       ),
-      body: body,
+      body: bodyContent,
     );
   }
 }
