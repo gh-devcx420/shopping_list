@@ -6,9 +6,12 @@ import 'package:shopping_list/data/categories.dart';
 import 'package:shopping_list/data/grocery_list.dart';
 import 'package:shopping_list/models/grocery_item.dart';
 import 'package:shopping_list/screens/add_item_screen.dart';
+import 'package:shopping_list/theme/color_scheme.dart';
 
 class ShoppingListHomeScreen extends StatefulWidget {
-  const ShoppingListHomeScreen({super.key});
+  const ShoppingListHomeScreen({super.key, required this.onThemeChanged});
+
+  final void Function(AppColors) onThemeChanged;
 
   @override
   State<ShoppingListHomeScreen> createState() => _ShoppingListHomeScreenState();
@@ -16,6 +19,7 @@ class ShoppingListHomeScreen extends StatefulWidget {
 
 class _ShoppingListHomeScreenState extends State<ShoppingListHomeScreen> {
   bool _isLoading = true;
+  bool _showFAB = false;
 
   void loadItems() async {
     final url = Uri.https(
@@ -23,26 +27,38 @@ class _ShoppingListHomeScreenState extends State<ShoppingListHomeScreen> {
       'shopping-list.json',
     );
     final response = await http.get(url);
-    final Map<String, dynamic> listData = json.decode(response.body);
-
-    List<GroceryItem> loadedList = [];
-    for (final item in listData.entries) {
-      final category = shoppingCategories.entries.firstWhere((categoryItem) {
-        return categoryItem.value.title == item.value['category'];
-      }).value;
-      loadedList.add(
-        GroceryItem(
-          id: item.key,
-          itemName: item.value['itemName'],
-          category: category,
-          quantity: item.value['quantity'],
-        ),
-      );
+    try {
+      if (response.body == 'null') {
+        setState(() {
+          _isLoading = false;
+          _showFAB = true;
+        });
+        return;
+      }
+      final Map<String, dynamic> listData = json.decode(response.body);
+      List<GroceryItem> loadedList = [];
+      for (final item in listData.entries) {
+        final category = shoppingCategories.entries.firstWhere((categoryItem) {
+          return categoryItem.value.title == item.value['category'];
+        }).value;
+        loadedList.add(
+          GroceryItem(
+            id: item.key,
+            itemName: item.value['itemName'],
+            category: category,
+            quantity: item.value['quantity'],
+          ),
+        );
+      }
+      setState(() {
+        groceryItems = loadedList;
+      });
+    } catch (error) {
+      setState(() {
+        _isLoading = false;
+        _showFAB = true;
+      });
     }
-    setState(() {
-      groceryItems = loadedList;
-      _isLoading = false;
-    });
   }
 
   void _addItem(BuildContext context) async {
@@ -65,6 +81,9 @@ class _ShoppingListHomeScreenState extends State<ShoppingListHomeScreen> {
     );
     http.delete(url);
     groceryItems.remove(item);
+    setState(() {
+      _isLoading = false;
+    });
   }
 
   @override
@@ -76,7 +95,13 @@ class _ShoppingListHomeScreenState extends State<ShoppingListHomeScreen> {
   @override
   Widget build(BuildContext context) {
     Widget bodyContent = const Center(
-      child: Text('No Data'),
+      child: Text(
+        'Shopping list is empty.',
+        style: TextStyle(
+          fontSize: 18,
+          fontWeight: FontWeight.w400,
+        ),
+      ),
     );
     if (_isLoading) {
       bodyContent = const Center(
@@ -90,27 +115,37 @@ class _ShoppingListHomeScreenState extends State<ShoppingListHomeScreen> {
           return Dismissible(
             key: ValueKey(groceryItems[index].id),
             direction: DismissDirection.horizontal,
+            background: Container(
+              color: Colors.red,
+              child: const Center(
+                child: Text(
+                  'Deleting',
+                  style: TextStyle(fontSize: 18),
+                ),
+              ),
+            ),
             confirmDismiss: (direction) async {
               return showDialog(
-                  context: context,
-                  builder: (context) {
-                    return AlertDialog(
-                      title: const Text('Confirm Deletion'),
-                      content: const Text(
-                        'Are you sure you want to delete this item?',
+                context: context,
+                builder: (context) {
+                  return AlertDialog(
+                    title: const Text('Confirm Deletion'),
+                    content: const Text(
+                      'Are you sure you want to delete this item?',
+                    ),
+                    actions: <Widget>[
+                      TextButton(
+                        onPressed: () => Navigator.of(context).pop(false),
+                        child: const Text('Cancel'),
                       ),
-                      actions: <Widget>[
-                        TextButton(
-                          onPressed: () => Navigator.of(context).pop(false),
-                          child: const Text('Cancel'),
-                        ),
-                        TextButton(
-                          onPressed: () => Navigator.of(context).pop(true),
-                          child: const Text('Delete'),
-                        ),
-                      ],
-                    );
-                  });
+                      ElevatedButton(
+                        onPressed: () => Navigator.of(context).pop(true),
+                        child: const Text('Delete'),
+                      ),
+                    ],
+                  );
+                },
+              );
             },
             onDismissed: (direction) {
               _removeItem(
@@ -143,18 +178,72 @@ class _ShoppingListHomeScreenState extends State<ShoppingListHomeScreen> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Shopping List'),
-        backgroundColor: Colors.teal,
-      ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: () {
-          _addItem(context);
-        },
-        backgroundColor: Colors.teal,
-        child: const Icon(
-          Icons.add,
-          color: Colors.white,
+        leading: const Icon(
+          Icons.shopping_cart,
         ),
+        titleSpacing: 0,
+        actions: [
+          IconButton(
+            onPressed: () {
+              showDialog(
+                  context: context,
+                  builder: (context) {
+                    return AlertDialog(
+                      title: const Text('Choose Theme'),
+                      content: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          ...lightColorSchemes.entries.map((themeItem) {
+                            return Padding(
+                              padding: const EdgeInsets.all(12),
+                              child: InkWell(
+                                splashColor: Colors.transparent,
+                                highlightColor: Colors.transparent,
+                                onTap: () {
+                                  widget.onThemeChanged(themeItem.key);
+                                  Navigator.of(context).pop();
+                                },
+                                child: Row(
+                                  children: [
+                                    Container(
+                                      height: 25,
+                                      width: 25,
+                                      decoration: BoxDecoration(
+                                        color: themeItem.value.previewColor,
+                                        borderRadius: BorderRadius.circular(15),
+                                      ),
+                                    ),
+                                    const SizedBox(
+                                      width: 10,
+                                    ),
+                                    Text(
+                                      themeItem.value.themeName,
+                                      style: TextStyle(fontSize: 16),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            );
+                          })
+                        ],
+                      ),
+                    );
+                  });
+            },
+            icon: const Icon(Icons.settings),
+          )
+        ],
       ),
+      floatingActionButton: _showFAB
+          ? FloatingActionButton(
+              onPressed: () {
+                _addItem(context);
+              },
+              child: const Icon(
+                Icons.add,
+              ),
+            )
+          : Container(),
       body: bodyContent,
     );
   }

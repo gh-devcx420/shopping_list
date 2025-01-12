@@ -26,39 +26,61 @@ class _AddItemScreenState extends State<AddItemScreen> {
       setState(() {
         _isSending = true;
       });
-      final url = Uri.https(
-        'shopping-list-d65c7-default-rtdb.firebaseio.com',
-        'shopping-list.json',
-      );
-      final response = await http.post(
-        url,
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: json.encode({
-          'itemName': _itemName,
-          'category': shoppingCategories[_selectedCategory]!.title,
-          'quantity': _quantity,
-        }),
-      );
-      await Future.delayed(
-        const Duration(seconds: 2), //to observe loading spinner
-      );
-      var itemID = json.decode(response.body);
-      var categoryFromEnum = shoppingCategories.entries.firstWhere((value) {
-        return value.key == _selectedCategory;
-      });
-      Navigator.of(context).pop(
-        GroceryItem(
-          id: itemID['name'],
-          itemName: _itemName,
-          category: Category(
-            title: categoryFromEnum.value.title,
-            categoryColour: categoryFromEnum.value.categoryColour,
+      try {
+        final url = Uri.https(
+          'shopping-list-d65c7-default-rtdb.firebaseio.com',
+          'shopping-list.json',
+        );
+        final response = await http.post(
+          url,
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: json.encode({
+            'itemName': _itemName,
+            'category': shoppingCategories[_selectedCategory]!.title,
+            'quantity': _quantity,
+          }),
+        );
+        var itemID = json.decode(response.body);
+        var categoryFromEnum = shoppingCategories.entries.firstWhere((value) {
+          return value.key == _selectedCategory;
+        });
+        Navigator.of(context).pop(
+          GroceryItem(
+            id: itemID['name'],
+            itemName: _itemName,
+            category: Category(
+              title: categoryFromEnum.value.title,
+              categoryColour: categoryFromEnum.value.categoryColour,
+            ),
+            quantity: _quantity,
           ),
-          quantity: _quantity,
-        ),
-      );
+        );
+      } catch (error) {
+        setState(() {
+          _isSending = false;
+        });
+        showDialog(
+          context: context,
+          builder: (context) {
+            return AlertDialog(
+              title: const Text('Network Error '),
+              content: const Text(
+                'Error adding item! \n\nCheck your internet connection & please try after sometime.',
+              ),
+              actions: [
+                ElevatedButton(
+                  onPressed: () {
+                    Navigator.of(context).pop();
+                  },
+                  child: const Text('OK'),
+                ),
+              ],
+            );
+          },
+        );
+      }
     }
   }
 
@@ -67,18 +89,18 @@ class _AddItemScreenState extends State<AddItemScreen> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Add Item'),
-        backgroundColor: Colors.teal,
       ),
       body: Padding(
-        padding: const EdgeInsets.all(8.0),
+        padding: const EdgeInsets.symmetric(
+          horizontal: 8.0,
+          vertical: 16,
+        ),
         child: Form(
           key: _formKey,
           child: Column(
             children: [
               TextFormField(
                 decoration: const InputDecoration(
-                  enabledBorder: OutlineInputBorder(),
-                  focusedBorder: OutlineInputBorder(),
                   label: Text('Item Name'),
                 ),
                 maxLength: 30,
@@ -96,7 +118,7 @@ class _AddItemScreenState extends State<AddItemScreen> {
                 },
               ),
               const SizedBox(
-                height: 4,
+                height: 8,
               ),
               Row(
                 crossAxisAlignment: CrossAxisAlignment.end,
@@ -104,8 +126,6 @@ class _AddItemScreenState extends State<AddItemScreen> {
                   Expanded(
                     child: TextFormField(
                       decoration: const InputDecoration(
-                        enabledBorder: OutlineInputBorder(),
-                        focusedBorder: OutlineInputBorder(),
                         label: Text('Quantity'),
                       ),
                       keyboardType: TextInputType.number,
@@ -128,10 +148,6 @@ class _AddItemScreenState extends State<AddItemScreen> {
                   ),
                   Expanded(
                     child: DropdownButtonFormField(
-                      decoration: const InputDecoration(
-                        enabledBorder: OutlineInputBorder(),
-                        focusedBorder: OutlineInputBorder(),
-                      ),
                       value: _selectedCategory,
                       validator: (value) {
                         if (value == null || value == GroceryCategory.none) {
@@ -151,13 +167,22 @@ class _AddItemScreenState extends State<AddItemScreen> {
                                   height: 18,
                                   decoration: BoxDecoration(
                                     color: currentCategory.value.categoryColour,
+                                    border: Border.all(
+                                      color: Colors.black,
+                                      width: 1,
+                                    ),
                                     borderRadius: BorderRadius.circular(4),
                                   ),
                                 ),
                                 const SizedBox(
                                   width: 12,
                                 ),
-                                Text(currentCategory.value.title),
+                                Text(
+                                  currentCategory.value.title,
+                                  style: const TextStyle(
+                                    fontSize: 16,
+                                  ),
+                                ),
                               ],
                             ),
                           ),
@@ -188,10 +213,11 @@ class _AddItemScreenState extends State<AddItemScreen> {
                         'Reset',
                       ),
                     ),
+                    const SizedBox(
+                      width: 6,
+                    ),
                     ElevatedButton(
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.teal,
-                      ),
+                      style: ElevatedButton.styleFrom(),
                       onPressed: _isSending ? null : _saveForm,
                       child: _isSending
                           ? const SizedBox(
@@ -201,9 +227,6 @@ class _AddItemScreenState extends State<AddItemScreen> {
                             )
                           : const Text(
                               'Save',
-                              style: TextStyle(
-                                color: Colors.white,
-                              ),
                             ),
                     ),
                   ],
