@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
+import 'package:internet_connection_checker/internet_connection_checker.dart';
 import 'package:shopping_list/data/categories.dart';
 import 'package:shopping_list/models/category_model.dart';
 import 'package:shopping_list/models/grocery_item.dart';
@@ -20,6 +21,43 @@ class _AddItemScreenState extends State<AddItemScreen> {
   final _formKey = GlobalKey<FormState>();
   bool _isSending = false;
 
+  Future<bool> isConnectedToInternet() async {
+    final connectionStatus =
+        await InternetConnectionChecker.instance.hasConnection;
+    return connectionStatus;
+  }
+
+  void _showErrorDialogue() {
+    showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: Text(
+            'Network Error ',
+            style: Theme.of(context).textTheme.titleMedium!.copyWith(
+                  color: Theme.of(context).colorScheme.error,
+                  fontWeight: FontWeight.w700,
+                ),
+          ),
+          content: const Text(
+            'Check your internet connection & please try after sometime.',
+          ),
+          actions: [
+            ElevatedButton(
+              onPressed: () {
+                Navigator.of(context).pop();
+              },
+              child: const Text('OK'),
+            ),
+          ],
+          titlePadding: const EdgeInsets.fromLTRB(16, 16, 16, 6),
+          contentPadding: const EdgeInsets.fromLTRB(16, 6, 16, 0),
+          actionsPadding: const EdgeInsets.fromLTRB(16, 4, 16, 16),
+        );
+      },
+    );
+  }
+
   void _saveForm() async {
     if (_formKey.currentState!.validate()) {
       _formKey.currentState!.save();
@@ -27,6 +65,12 @@ class _AddItemScreenState extends State<AddItemScreen> {
         _isSending = true;
       });
       try {
+        if (await isConnectedToInternet() == false) {
+          if (mounted) {
+            _showErrorDialogue();
+          }
+          return;
+        }
         final url = Uri.https(
           'shopping-list-d65c7-default-rtdb.firebaseio.com',
           'shopping-list.json',
@@ -42,50 +86,41 @@ class _AddItemScreenState extends State<AddItemScreen> {
             'quantity': _quantity,
           }),
         );
-        var itemID = json.decode(response.body);
+        final Map<String, dynamic> itemID = json.decode(response.body);
         var categoryFromEnum = shoppingCategories.entries.firstWhere((value) {
           return value.key == _selectedCategory;
         });
-        Navigator.of(context).pop(
-          GroceryItem(
-            id: itemID['name'],
-            itemName: _itemName,
-            category: Category(
-              title: categoryFromEnum.value.title,
-              categoryColour: categoryFromEnum.value.categoryColour,
-            ),
-            quantity: _quantity,
-          ),
-        );
-      } catch (error) {
-        setState(() {
-          _isSending = false;
-        });
-        showDialog(
-          context: context,
-          builder: (context) {
-            return AlertDialog(
-              title: const Text('Network Error '),
-              content: const Text(
-                'Error adding item! \n\nCheck your internet connection & please try after sometime.',
+        if (mounted) {
+          Navigator.of(context).pop(
+            GroceryItem(
+              id: itemID['name'],
+              itemName: _itemName,
+              category: Category(
+                title: categoryFromEnum.value.title,
+                categoryColour: categoryFromEnum.value.categoryColour,
               ),
-              actions: [
-                ElevatedButton(
-                  onPressed: () {
-                    Navigator.of(context).pop();
-                  },
-                  child: const Text('OK'),
-                ),
-              ],
-            );
-          },
-        );
+              quantity: _quantity,
+            ),
+          );
+        }
+      } catch (error) {
+        if (context.mounted) {
+          _showErrorDialogue();
+        }
+      } finally {
+        if (mounted) {
+          setState(() {
+            _isSending = false;
+          });
+        }
       }
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('Add Item'),
@@ -103,6 +138,12 @@ class _AddItemScreenState extends State<AddItemScreen> {
                 decoration: const InputDecoration(
                   label: Text('Item Name'),
                 ),
+                style: Theme.of(context).textTheme.labelMedium!.copyWith(
+                      color: isDark
+                          ? Theme.of(context).colorScheme.primaryFixed
+                          : Theme.of(context).colorScheme.primary,
+                    ),
+                textCapitalization: TextCapitalization.words,
                 maxLength: 30,
                 validator: (value) {
                   if (value == null ||
@@ -122,12 +163,18 @@ class _AddItemScreenState extends State<AddItemScreen> {
               ),
               Row(
                 crossAxisAlignment: CrossAxisAlignment.end,
+                mainAxisAlignment: MainAxisAlignment.end,
                 children: [
                   Expanded(
                     child: TextFormField(
                       decoration: const InputDecoration(
                         label: Text('Quantity'),
                       ),
+                      style: Theme.of(context).textTheme.labelMedium!.copyWith(
+                            color: isDark
+                                ? Theme.of(context).colorScheme.primaryFixed
+                                : Theme.of(context).colorScheme.primary,
+                          ),
                       keyboardType: TextInputType.number,
                       validator: (value) {
                         if (value == null ||
@@ -155,6 +202,7 @@ class _AddItemScreenState extends State<AddItemScreen> {
                         }
                         return null;
                       },
+                      //style: Theme.of(context).textTheme.labelSmall,
                       items: [
                         for (final currentCategory
                             in shoppingCategories.entries)
@@ -179,9 +227,18 @@ class _AddItemScreenState extends State<AddItemScreen> {
                                 ),
                                 Text(
                                   currentCategory.value.title,
-                                  style: const TextStyle(
-                                    fontSize: 16,
-                                  ),
+                                  style: Theme.of(context)
+                                      .textTheme
+                                      .labelMedium!
+                                      .copyWith(
+                                        color: isDark
+                                            ? Theme.of(context)
+                                                .colorScheme
+                                                .primaryFixed
+                                            : Theme.of(context)
+                                                .colorScheme
+                                                .primary,
+                                      ),
                                 ),
                               ],
                             ),
@@ -195,7 +252,7 @@ class _AddItemScreenState extends State<AddItemScreen> {
                 ],
               ),
               const SizedBox(
-                height: 20,
+                height: 30,
               ),
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 16),

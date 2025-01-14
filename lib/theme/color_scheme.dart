@@ -10,12 +10,12 @@ Map<AppColors, String> themeNames = {};
 
 Map<AppColors, ThemeModel> lightColorSchemes = {
   AppColors.indigoSanMarino: ThemeModel(
-    previewColor: Colors.indigo,
+    previewColor: const Color(0xFF4355B9),
     themeName: 'Indigo San Marino',
     themeColorScheme: lightColorSchemeIndigoSanMarino,
   ),
   AppColors.verdunGreen: ThemeModel(
-    previewColor: Colors.green,
+    previewColor: const Color(0xFF556500),
     themeName: 'Verdun Green',
     themeColorScheme: lightColorSchemeVerdunGreen,
   ),

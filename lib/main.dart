@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:shopping_list/screens/shopping_list_home.dart';
 import 'package:shopping_list/theme/color_scheme.dart';
 import 'package:shopping_list/theme/theme.dart';
@@ -17,23 +18,39 @@ class ShoppingList extends StatefulWidget {
 }
 
 class _ShoppingListState extends State<ShoppingList> {
-  late ColorScheme lightColorScheme;
-  late ColorScheme darkColorScheme;
+  late ColorScheme lightColorScheme =
+      lightColorSchemes[AppColors.indigoSanMarino]!.themeColorScheme;
+  late ColorScheme darkColorScheme =
+      darkColorSchemes[AppColors.indigoSanMarino]!.themeColorScheme;
+  late SharedPreferences prefs;
 
-  void setColourScheme(AppColors pickedColourTheme) {
+  Future<void> _savePreferences(AppColors currentThemeEnum) async {
+    final prefs = await SharedPreferences.getInstance();
+    prefs.setString(
+        'savedThemeName', lightColorSchemes[currentThemeEnum]!.themeName);
+  }
+
+  Future<void> _loadPreferences() async {
+    final prefs = await SharedPreferences.getInstance();
+    final savedTheme = prefs.getString('savedThemeName');
+    final themeEnum = lightColorSchemes.entries.firstWhere((entry) {
+      return entry.value.themeName == savedTheme!;
+    }).key;
+    _setColourScheme(themeEnum);
+  }
+
+  void _setColourScheme(AppColors pickedColourTheme) {
     setState(() {
       lightColorScheme = lightColorSchemes[pickedColourTheme]!.themeColorScheme;
       darkColorScheme = darkColorSchemes[pickedColourTheme]!.themeColorScheme;
     });
+    _savePreferences(pickedColourTheme);
   }
 
   @override
   void initState() {
     super.initState();
-    lightColorScheme =
-        lightColorSchemes[AppColors.indigoSanMarino]!.themeColorScheme;
-    darkColorScheme =
-        darkColorSchemes[AppColors.indigoSanMarino]!.themeColorScheme;
+    _loadPreferences();
   }
 
   @override
@@ -44,7 +61,7 @@ class _ShoppingListState extends State<ShoppingList> {
       darkTheme: AppTheme.darkTheme(darkColorScheme),
       themeMode: ThemeMode.system,
       home: ShoppingListHomeScreen(
-        onThemeChanged: setColourScheme,
+        onThemeChanged: _setColourScheme,
       ),
     );
   }
